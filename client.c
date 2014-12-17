@@ -90,6 +90,33 @@ void process_audio (jack_nframes_t nframes)  {
     }
 
     free(input_buffer);
+
+    /*
+     * Play Back
+     */
+    sample_t *buffer = (sample_t *) jack_port_get_buffer (output_port, nframes);
+    bzero(buffer, sizeof(sample_t) * nframes);
+    jack_nframes_t frames_left = nframes;
+
+    while (frames_left > 0) {
+        if (tail > head && tail - head > frames_left) {
+            memcpy(buffer + (nframes - frames_left), wave + head, sizeof(sample_t) * (frames_left));
+            head += frames_left;
+            frames_left = 0;
+        } else if (tail < head) {
+            memcpy(buffer + (nframes - frames_left), wave + head, sizeof(sample_t) * (wave_max_length - head));
+            frames_left -= (wave_max_length - head);
+            head = 0;
+        } else {
+            memcpy(buffer + (nframes - frames_left), wave + head, sizeof(sample_t) * (tail - head));
+            frames_left -= (tail - head);
+            head = tail;
+            break;
+        }
+    }
+
+
+
 }
 
 int process (jack_nframes_t nframes, void *arg) {
@@ -342,27 +369,27 @@ int main(int argc, char *argv[]) {
     wave = (sample_t *)malloc(wave_max_length * sizeof(sample_t));
 
     while (1) {    
-        sleep(1);        
-        // bzero(buffer, 512 * sizeof(sample_t));
-        // int n;
+        // sleep(1);        
+        bzero(buffer, 512 * sizeof(sample_t));
+        int n;
         
-        // if ((n = recvfrom(sockfd_in, buffer, 512 * sizeof(sample_t), 0, 
-        //                          (struct sockaddr *)&serv_addr_in, (socklen_t *)&addr_len_in)) < 0) {
-        //     fprintf(stderr, "ERROR reading from socket");
-        // }
+        if ((n = recvfrom(sockfd_in, buffer, 512 * sizeof(sample_t), 0, 
+                                 (struct sockaddr *)&serv_addr_in, (socklen_t *)&addr_len_in)) < 0) {
+            fprintf(stderr, "ERROR reading from socket");
+        }
 
-        // // printf("Received: %d\n", n);
+        printf("Received: %d\n", n);
 
-        // int buffer_length = n / sizeof(sample_t);
+        int buffer_length = n / sizeof(sample_t);
 
-        // if (tail + buffer_length <= wave_max_length) {
-        //     memcpy(wave + tail, buffer, n);
-        //     tail += buffer_length;
-        // } else {
-        //     memcpy(wave + tail, buffer, (wave_max_length - tail) * sizeof(sample_t));                
-        //     memcpy(wave, buffer + (wave_max_length - tail), sizeof(sample_t) * (tail + buffer_length - wave_max_length));
-        //     tail = tail + buffer_length - wave_max_length;
-        // }
+        if (tail + buffer_length <= wave_max_length) {
+            memcpy(wave + tail, buffer, n);
+            tail += buffer_length;
+        } else {
+            memcpy(wave + tail, buffer, (wave_max_length - tail) * sizeof(sample_t));                
+            memcpy(wave, buffer + (wave_max_length - tail), sizeof(sample_t) * (tail + buffer_length - wave_max_length));
+            tail = tail + buffer_length - wave_max_length;
+        }
     
     }
 

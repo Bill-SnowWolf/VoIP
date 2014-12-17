@@ -91,30 +91,33 @@ void process_audio (jack_nframes_t nframes)  {
         offset += frames_left;
     }
 
-    // // Send Back Sound
-    // if (started == 1) {
-    //     int data_left = nframes;
+    // Send Back Sound
+    if (started == 1) {
+        // int n = sendto(sockfd_out, "hello", strlen("hello"), 0,
+        //                    (struct sockaddr *)&serv_addr_out,
+        //                    addr_len_out);
+        int data_left = nframes;
 
-    //     while (data_left > 0) {
-    //         int data_size;
-    //         if (data_left >= 512) {
-    //             data_size = 512;
-    //         } else {
-    //             data_size = data_left;
-    //         }
+        while (data_left > 0) {
+            int data_size;
+            if (data_left >= 512) {
+                data_size = 512;
+            } else {
+                data_size = data_left;
+            }
 
-    //         int n = sendto(sockfd_out, buffer_in + (nframes - data_left), data_size * sizeof(sample_t), 0,
-    //                        (struct sockaddr *)&serv_addr_out,
-    //                        addr_len_out);
-    //         if (n<0) {
-    //             printf("Die\n");
-    //             exit(1);
-    //         }
-    //         data_left -= data_size;
-    //     }
+            int n = sendto(sockfd_out, buffer_in + (nframes - data_left), data_size * sizeof(sample_t), 0,
+                           (struct sockaddr *)&client_addr_out,
+                           addr_len_out);
+            if (n<0) {
+                printf("Die\n");
+                exit(1);
+            }
+            data_left -= data_size;
+        }
 
-    //     free(buffer_in);
-    // }
+        free(buffer_in);
+    }
 }
 
 int process (jack_nframes_t nframes, void *arg) {
