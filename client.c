@@ -59,12 +59,24 @@ void process_audio (jack_nframes_t nframes)  {
     // }
 
     // Send Data: UDP
-    int n = sendto(sockfd, buffer, nframes * sizeof(sample_t), 0,
-                   (struct sockaddr *)&serv_addr,
-                   addr_len);
-    if (n<0) {
-        printf("Die\n");
-        exit(1);
+    int data_left = nframes;
+
+    while (data_left > 0) {
+        int data_size;
+        if (data_left >= 512) {
+            data_size = 512;
+        } else {
+            data_size = data_left;
+        }
+
+        int n = sendto(sockfd, buffer + (nframes - data_left), data_size * sizeof(sample_t), 0,
+                       (struct sockaddr *)&serv_addr,
+                       addr_len);
+        if (n<0) {
+            printf("Die\n");
+            exit(1);
+        }
+        data_left -= data_size;
     }
 
     free(buffer);
