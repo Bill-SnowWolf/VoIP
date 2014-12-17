@@ -38,18 +38,18 @@ void process_audio (jack_nframes_t nframes)  {
     jack_default_audio_sample_t *in = (jack_default_audio_sample_t *) jack_port_get_buffer (input_port, nframes);
 
     sample_t *buffer = (sample_t *)malloc(sizeof(sample_t) * nframes);
-    jack_nframes_t frames_left = nframes;
+    // jack_nframes_t frames_left = nframes;
 
-    while (wave_length - offset < frames_left) {
-        memcpy (buffer + (nframes - frames_left), wave + offset, sizeof (sample_t) * (wave_length - offset));
-        frames_left -= wave_length - offset;
-        offset = 0;
-    }
-    if (frames_left > 0) {
-        memcpy (buffer + (nframes - frames_left), wave + offset, sizeof (sample_t) * frames_left);
-        offset += frames_left;
-    }
-    // memcpy(buffer, in, nframes * sizeof(sample_t));
+    // while (wave_length - offset < frames_left) {
+    //     memcpy (buffer + (nframes - frames_left), wave + offset, sizeof (sample_t) * (wave_length - offset));
+    //     frames_left -= wave_length - offset;
+    //     offset = 0;
+    // }
+    // if (frames_left > 0) {
+    //     memcpy (buffer + (nframes - frames_left), wave + offset, sizeof (sample_t) * frames_left);
+    //     offset += frames_left;
+    // }
+    memcpy(buffer, in, nframes * sizeof(sample_t));
 
     // // Send buffer through socket: TCP
     // int n = write(sockfd, buffer, nframes * sizeof(sample_t));
