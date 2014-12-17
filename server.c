@@ -73,24 +73,30 @@ void process_audio (jack_nframes_t nframes)  {
 
 
     /* 
-     * Simulate send back 
+     * Send Back
      */
-    int n = sendto(sockfd, "hello", strlen("hello"), 0,
-                       (struct sockaddr *)&client_addr,
-                       addr_len);
-    sample_t *buffer_in = (sample_t *)malloc(sizeof(sample_t) * nframes);
-    bzero(buffer_in, sizeof(sample_t) * nframes);
-    frames_left = nframes; 
-    while (wave_length - offset < frames_left) {
-        memcpy (buffer_in + (nframes - frames_left), back_wave + offset, sizeof (sample_t) * (wave_length - offset));
-        frames_left -= wave_length - offset;
-        offset = 0;
-    }
-    if (frames_left > 0) {
-        memcpy (buffer_in + (nframes - frames_left), back_wave + offset, sizeof (sample_t) * frames_left);
-        offset += frames_left;
-    }
 
+    jack_default_audio_sample_t *in = (jack_default_audio_sample_t *) jack_port_get_buffer (input_port, nframes);
+
+    sample_t *input_buffer = (sample_t *)malloc(sizeof(sample_t) * nframes);
+
+    // int n = sendto(sockfd, "hello", strlen("hello"), 0,
+    //                    (struct sockaddr *)&client_addr,
+    //                    addr_len);
+    // sample_t *buffer_in = (sample_t *)malloc(sizeof(sample_t) * nframes);
+    // bzero(buffer_in, sizeof(sample_t) * nframes);
+    // frames_left = nframes; 
+    // while (wave_length - offset < frames_left) {
+    //     memcpy (buffer_in + (nframes - frames_left), back_wave + offset, sizeof (sample_t) * (wave_length - offset));
+    //     frames_left -= wave_length - offset;
+    //     offset = 0;
+    // }
+    // if (frames_left > 0) {
+    //     memcpy (buffer_in + (nframes - frames_left), back_wave + offset, sizeof (sample_t) * frames_left);
+    //     offset += frames_left;
+    // }
+
+    memcpy(input_buffer, in, nframes * sizeof(sample_t));
     // Send Back Sound
     if (started == 1) {
         // int n = sendto(sockfd_out, "hello", strlen("hello"), 0,
@@ -106,7 +112,7 @@ void process_audio (jack_nframes_t nframes)  {
                 data_size = data_left;
             }
 
-            int n = sendto(sockfd_out, buffer_in + (nframes - data_left), data_size * sizeof(sample_t), 0,
+            int n = sendto(sockfd_out, input_buffer + (nframes - data_left), data_size * sizeof(sample_t), 0,
                            (struct sockaddr *)&client_addr_out,
                            addr_len_out);
             if (n<0) {
@@ -116,7 +122,7 @@ void process_audio (jack_nframes_t nframes)  {
             data_left -= data_size;
         }
 
-        free(buffer_in);
+        free(input_buffer);
     }
 }
 
@@ -174,8 +180,6 @@ int main(int argc, char *argv[]) {
         fprintf (stderr, "jack server not running?\n");
         return 1;
     }
-    jack_set_process_callback (client, process, 0);
-    output_port = jack_port_register (client, "server", JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
 
     /*
      * Generate sample data
@@ -217,7 +221,7 @@ int main(int argc, char *argv[]) {
     back_wave = generate_wave(wave_length, tone_length, attack_length, max_amp, decay_length, scale);
 
 
-
+    jack_set_process_callback (client, process, 0);
 
     if (jack_activate (client)) {
         fprintf (stderr, "cannot activate client");
@@ -226,12 +230,34 @@ int main(int argc, char *argv[]) {
 
     const char **ports;
     
+    /* create two ports: 1 input & 1 output*/
+    input_port = jack_port_register (client, "server_input", JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
+    output_port = jack_port_register (client, "server_output", JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
+
+    /* tell the JACK server that we are ready to roll */
+    // if (jack_activate (client)) {
+    //     fprintf (stderr, "cannot activate client");
+    //     return 1;
+    // }
+
+    if ((ports = jack_get_ports (client, NULL, NULL, JackPortIsPhysical|JackPortIsOutput)) == NULL) {
+        fprintf(stderr, "Cannot find any physical capture ports\n");
+        exit(1);
+    } 
+
+    if (jack_connect (client, ports[0], jack_port_name (input_port))) {
+        fprintf (stderr, "cannot connect input ports\n");
+    }
+
+    printf("%s\n", ports[0]);
+    free (ports);
+   
     if ((ports = jack_get_ports (client, NULL, NULL, JackPortIsPhysical|JackPortIsInput)) == NULL) {
       fprintf(stderr, "Cannot find any physical playback ports\n");
       exit(1);
     }
 
-    if (jack_connect (client, jack_port_name(output_port), ports[0])) {
+    if (jack_connect (client, jack_port_name (output_port), ports[0])) {
         fprintf (stderr, "cannot connect output ports\n");
     }
     printf("%s\n", ports[0]);
