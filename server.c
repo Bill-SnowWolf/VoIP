@@ -114,7 +114,7 @@ int main(int argc, char *argv[]) {
     /*
      * Create Server Socket
      */
-    int sockfd = socket(PF_INET, SOCK_STREAM, 0);
+    int sockfd = socket(PF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
         fprintf(stderr, "ERROR opening socket");
     }

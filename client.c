@@ -184,7 +184,7 @@ int main(int argc, char *argv[]) {
     /*
      * Create client socket
      */
-    sockfd = socket(PF_INET, SOCK_STREAM, 0);
+    sockfd = socket(PF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
         fprintf(stderr, "ERROR opening socket");
         exit(1);
