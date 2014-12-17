@@ -21,7 +21,8 @@ typedef jack_default_audio_sample_t sample_t;
 const double PI = 3.14;
 
 jack_client_t *client;
-jack_port_t *output_port;;
+jack_port_t *output_port;
+jack_port_t *input_port;
 jack_nframes_t wave_length;
 sample_t *wave;
 long offset = 0;
@@ -30,29 +31,43 @@ int sockfd;
 void process_audio (jack_nframes_t nframes)  {
     // printf("%d\n", nframes);
     // sample_t *buffer = (sample_t *) jack_port_get_buffer (output_port, nframes);
+
+    jack_default_audio_sample_t *in = (jack_default_audio_sample_t *) jack_port_get_buffer (input_port, nframes);
+
     sample_t *buffer = (sample_t *)malloc(sizeof(sample_t) * nframes);
-    jack_nframes_t frames_left = nframes;
+    // jack_nframes_t frames_left = nframes;
 
-    while (wave_length - offset < frames_left) {
-        memcpy (buffer + (nframes - frames_left), wave + offset, sizeof (sample_t) * (wave_length - offset));
-        frames_left -= wave_length - offset;
-        offset = 0;
-    }
-    if (frames_left > 0) {
-        memcpy (buffer + (nframes - frames_left), wave + offset, sizeof (sample_t) * frames_left);
-        offset += frames_left;
-    }
-
+    // while (wave_length - offset < frames_left) {
+    //     memcpy (buffer + (nframes - frames_left), wave + offset, sizeof (sample_t) * (wave_length - offset));
+    //     frames_left -= wave_length - offset;
+    //     offset = 0;
+    // }
+    // if (frames_left > 0) {
+    //     memcpy (buffer + (nframes - frames_left), wave + offset, sizeof (sample_t) * frames_left);
+    //     offset += frames_left;
+    // }
+    memcpy(buffer, in, nframes * sizeof(sample_t));
     // Send buffer through socket
     int n = write(sockfd, buffer, nframes * sizeof(sample_t));
     if (n < 0) {
         printf("Socket closed \n");
-        exit;
+        close(sockfd);
     }
+    free(buffer);
 }
 
 int process (jack_nframes_t nframes, void *arg) {
     process_audio (nframes);
+
+    // jack_default_audio_sample_t *in = (jack_default_audio_sample_t *) jack_port_get_buffer (input_port, nframes);
+    // Send buffer through socket
+    
+    // if (n < 0) {
+        // printf("Socket closed \n");
+        // close(sockfd);
+    // }
+
+// jack_default_audio_sample_t *out = (jack_default_audio_sample_t *) jack_port_get_buffer (output_port, nframes);
     return 0;
 }
 
@@ -153,7 +168,8 @@ int main(int argc, char *argv[]) {
     wave = generate_wave(wave_length, tone_length, attack_length, max_amp, decay_length, scale);    
 
     jack_set_process_callback (client, process, 0);
-    output_port = jack_port_register (client, "120_bpm", JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
+    // output_port = jack_port_register (client, "120_bpm", JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
+    // input_port = jack_port_register (client, "input", JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
 
     // Socket
     int n;
@@ -216,14 +232,36 @@ int main(int argc, char *argv[]) {
 
     const char **ports;
     
+    /* create two ports: 1 input & 1 output*/
+  input_port = jack_port_register (client, "input", JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
+  output_port = jack_port_register (client, "output", JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
+
+  /* tell the JACK server that we are ready to roll */
+  if (jack_activate (client)) {
+    fprintf (stderr, "cannot activate client");
+    return 1;
+  }
+
+  if ((ports = jack_get_ports (client, NULL, NULL, JackPortIsPhysical|JackPortIsOutput)) == NULL) {
+    fprintf(stderr, "Cannot find any physical capture ports\n");
+    exit(1);
+  }
+
+  if (jack_connect (client, ports[0], jack_port_name (input_port))) {
+    fprintf (stderr, "cannot connect input ports\n");
+  }
+
+  printf("%s\n", ports[0]);
+  free (ports);
+   
     if ((ports = jack_get_ports (client, NULL, NULL, JackPortIsPhysical|JackPortIsInput)) == NULL) {
       fprintf(stderr, "Cannot find any physical playback ports\n");
       exit(1);
     }
 
-    if (jack_connect (client, jack_port_name(output_port), ports[0])) {
-        fprintf (stderr, "cannot connect output ports\n");
-    }
+    // if (jack_connect (client, jack_port_name (output_port), ports[0])) {
+      // fprintf (stderr, "cannot connect output ports\n");
+    // }
     printf("%s\n", ports[0]);
     free (ports);
 
@@ -232,25 +270,25 @@ int main(int argc, char *argv[]) {
     };
 
 
-    sample_t * buffer = (sample_t *)malloc(256 * sizeof(sample_t));
+    // sample_t * buffer = (sample_t *)malloc(256 * sizeof(sample_t));
 
-    int buffer_size = 256 * sizeof(sample_t);
-    // while (1) {
-        printf("client> ");
-        bzero(buffer, buffer_size);
-        memcpy(buffer, wave, buffer_size);
+    // int buffer_size = 256 * sizeof(sample_t);
+    // // while (1) {
+    //     printf("client> ");
+    //     bzero(buffer, buffer_size);
+    //     memcpy(buffer, wave, buffer_size);
 
-        printf("2: %lu\n", wave_length * sizeof(sample_t));
+    //     printf("2: %lu\n", wave_length * sizeof(sample_t));
 
 
-        n = write(sockfd, wave, wave_length * sizeof(sample_t));
-        if (n < 0) {
-            fprintf(stderr, "ERROR writing to socket");
-            // break;
-        }
+    //     n = write(sockfd, wave, wave_length * sizeof(sample_t));
+    //     if (n < 0) {
+    //         fprintf(stderr, "ERROR writing to socket");
+    //         // break;
+    //     }
          
-    // }
-    close(sockfd);
+    // // }
+    // close(sockfd);
     printf("Client socket has stopped.\n");   
     return 0;
 }
