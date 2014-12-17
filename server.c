@@ -18,8 +18,11 @@ typedef jack_default_audio_sample_t sample_t;
 jack_client_t *client;
 jack_port_t *output_port;;
 jack_nframes_t wave_length;
+jack_nframes_t wave_max_length = 10240;
 sample_t *wave;
-long offset = 0;
+long head = 0;
+long tail = 0;
+
 
 const double PI = 3.14;
 
@@ -28,21 +31,41 @@ void process_audio (jack_nframes_t nframes)  {
     // printf("%d\n", nframes);
     // if (wave_length > 0)
     sample_t *buffer = (sample_t *) jack_port_get_buffer (output_port, nframes);
-    if (wave_length > 0) {
-        jack_nframes_t frames_left = nframes;
+    bzero(buffer, sizeof(sample_t) * nframes);
+    // if (head < wave_length) {
+    jack_nframes_t frames_left = nframes;
 
-        while (wave_length - offset < frames_left) {
-            memcpy (buffer + (nframes - frames_left), wave + offset, sizeof (sample_t) * (wave_length - offset));
-            frames_left -= wave_length - offset;
-            offset = 0;
+    while (frames_left > 0) {
+        if (tail > head && tail - head > frames_left) {
+            memcpy(buffer + (nframes - frames_left), wave + head, sizeof(sample_t) * (frames_left));
+            head += frames_left;
+            frames_left = 0;
+        } else if (tail < head) {
+            memcpy(buffer + (nframes - frames_left), wave + head, sizeof(sample_t) * (wave_max_length - head));
+            // head = wave_length;
+            frames_left -= (wave_max_length - head);
+            head = 0;
+        } else {
+            memcpy(buffer + (nframes - frames_left), wave + head, sizeof(sample_t) * (tail - head));
+            // head = wave_length;
+            frames_left -= (tail - head);
+            head = tail;
+            break;
         }
-        if (frames_left > 0) {
-            memcpy (buffer + (nframes - frames_left), wave + offset, sizeof (sample_t) * frames_left);
-            offset += frames_left;
-        }
-    } else {
-        bzero(buffer, sizeof(sample_t) * nframes);
     }
+
+        // while (wave_length - head < frames_left) {
+        //     memcpy (buffer + (nframes - frames_left), wave + head, sizeof (sample_t) * (wave_length - head));
+        //     frames_left -= wave_length - head;
+        //     head = 0;
+        // }
+        // if (frames_left > 0) {
+        //     memcpy (buffer + (nframes - frames_left), wave + head, sizeof (sample_t) * frames_left);
+        //     head += frames_left;
+        // }
+    // } else {
+        // bzero(buffer, sizeof(sample_t) * nframes);
+    // }
 }
 
 int process (jack_nframes_t nframes, void *arg) {
@@ -118,6 +141,11 @@ int main(int argc, char *argv[]) {
     int client_sockfd;
     struct sockaddr_in client_addr;
     socklen_t clilen;
+
+    /*
+     * wave max length is 1024
+     */
+
     // char buffer[256];
 
     // while (1) {
@@ -133,7 +161,7 @@ int main(int argc, char *argv[]) {
         jack_nframes_t wave_size = 0;
         // Start communicating
 
-
+        head = 0;
 
         while (1) {
             // bzero(buffer, 256);
@@ -146,7 +174,7 @@ int main(int argc, char *argv[]) {
             } else if (n == 0) {
                 break;
             }
-            printf("Received %d bytes\n", n);
+            // printf("Received %d bytes\n", n);
 
             // int length = n / size    of(sample_t);
             sample_t * tmp = (sample_t *)malloc(wave_size + n);
@@ -154,11 +182,25 @@ int main(int argc, char *argv[]) {
             memcpy(tmp + (wave_size / sizeof(sample_t)), buffer, n);
             wave = tmp;
 
-            wave_size += n;
-            free(tmp);
-            if (wave_size > 88200) {
-                break;
+            int buffer_length = n / sizeof(sample_t);
+
+            if (tail + buffer_length <= wave_max_length) {
+                memcpy(wave + tail, buffer, n);
+                tail += buffer_length;
+            } else {
+                memcpy(wave + tail, buffer, (wave_max_length - tail) * sizeof(sample_t));                
+                memcpy(wave, buffer + (wave_max_length - tail), sizeof(sample_t) * (tail + buffer_length - wave_max_length));
+                tail = tail + buffer_length - wave_max_length;
             }
+
+            // wave_size += n;
+            // wave_length = wave_size / sizeof(sample_t);
+            free(tmp);
+
+            // printf("%d\n", wave_length);
+            // if (wave_size > 88200) {
+                // break;
+            // }
             // for (int i=0;i<50;i++) {
             //   printf("%f\n", wave[i]);
             // }
@@ -175,9 +217,10 @@ int main(int argc, char *argv[]) {
     close(sockfd);
 
 
-    while (1) {
-        sleep(1);
-    };
+    // while (1) {
+        // sleep(1);
+    // };
 
+    free(wave);
     return 0; 
 }
