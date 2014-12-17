@@ -280,20 +280,20 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "ERROR on binding");
     }
 
-    // printf("Waiting for client\n");
-    // fflush(stdout);
-    // char command_buff[256];
-    // while(started == 0) {
-    //     bzero(command_buff, 256);
-    //     if ((n = recvfrom(sockfd_out, command_buff, 256 * sizeof(sample_t), 0, 
-    //                      (struct sockaddr *)&client_addr_out, (socklen_t *)&addr_len_out)) < 0) {
-    //         fprintf(stderr, "ERROR reading from socket");
-    //     }
-    //     if (strcmp(command_buff, "Start!") == 0) {
-    //         started = 1;
-    //         break;
-    //     }    
-    // }
+    printf("Waiting for client\n");
+    fflush(stdout);
+    char command_buff[256];
+    while(started == 0) {
+        bzero(command_buff, 256);
+        if ((n = recvfrom(sockfd_out, command_buff, 256 * sizeof(sample_t), 0, 
+                         (struct sockaddr *)&client_addr_out, (socklen_t *)&addr_len_out)) < 0) {
+            fprintf(stderr, "ERROR reading from socket");
+        }
+        if (strcmp(command_buff, "Start!") == 0) {
+            started = 1;
+            break;
+        }    
+    }
 
 
    
