@@ -83,7 +83,7 @@ int sample_rate_change () {
 int main(int argc, char *argv[]) {
 
     // Play Sound    
-    if ((client = jack_client_open("metro", JackNullOption, NULL)) == 0) {
+    if ((client = jack_client_open("server", JackNullOption, NULL)) == 0) {
         fprintf (stderr, "jack server not running?\n");
         return 1;
     }
@@ -109,12 +109,15 @@ int main(int argc, char *argv[]) {
     free (ports);
 
 
+    // Socket Part
     struct sockaddr_in serv_addr;
+    struct sockaddr_in client_addr;
+    int addr_len = sizeof(client_addr);
 
     /*
      * Create Server Socket
      */
-    int sockfd = socket(PF_INET, SOCK_DGRAM, 0);
+    int sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sockfd < 0) {
         fprintf(stderr, "ERROR opening socket");
     }
@@ -125,37 +128,39 @@ int main(int argc, char *argv[]) {
      * Bind Socket to a port
      */
     serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = INADDR_ANY;
+    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     serv_addr.sin_port = htons(PORT);
     if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)  {
         fprintf(stderr, "ERROR on binding");
     }
 
     /*
-     * Listen for client socket
+     * Listen for client socket: TCP/IP
      */
-    listen(sockfd, 5);
+    // listen(sockfd, 5);
 
-    printf("Server Socket Started...\n");
+    // printf("Server Socket Started...\n");
 
-    int client_sockfd;
-    struct sockaddr_in client_addr;
-    socklen_t clilen;
-
-    /*
-     * wave max length is 1024
-     */
+    // int client_sockfd;
+    // struct sockaddr_in client_addr;
+    // socklen_t clilen;
 
     // char buffer[256];
 
     // while (1) {
-        printf("Waiting for new socket\n");
-        clilen = sizeof(client_addr);    
-        if ((client_sockfd = accept(sockfd, (struct sockaddr *)&client_addr, &clilen)) < 0) {
-            fprintf(stderr, "accept() failed\n");
-        }
 
-        printf("New Socket Connection Accepted...\n");
+        /*
+         * TCP/IP
+         */
+        // clilen = sizeof(client_addr);    
+        // if ((client_sockfd = accept(sockfd, (struct sockaddr *)&client_addr, &clilen)) < 0) {
+        //     fprintf(stderr, "accept() failed\n");
+        // }
+
+        // printf("New Socket Connection Accepted...\n");
+
+        printf("Waiting for data\n");
+        fflush(stdout);
 
         sample_t * buffer = (sample_t *)malloc(256 * sizeof(sample_t));
         jack_nframes_t wave_size = 0;
@@ -165,23 +170,22 @@ int main(int argc, char *argv[]) {
         wave = (sample_t *)malloc(wave_max_length * sizeof(sample_t));
 
         while (1) {
+
             // bzero(buffer, 256);
             
             bzero(buffer, 256 * sizeof(sample_t));
             int n;
-            if ((n=read(client_sockfd, buffer, 256 * sizeof(sample_t))) < 0) {
+            // if ((n=read(client_sockfd, buffer, 256 * sizeof(sample_t))) < 0) {
+            //     fprintf(stderr, "ERROR reading from socket");
+            //     break;
+            // } else if (n == 0) {
+            //     break;
+            // }
+            
+            if ((n = recvfrom(sockfd, buffer, 256 * sizeof(sample_t), 0, 
+                                     (struct sockaddr *)&client_addr, (socklen_t *)&addr_len)) < 0) {
                 fprintf(stderr, "ERROR reading from socket");
-                break;
-            } else if (n == 0) {
-                break;
             }
-            // printf("Received %d bytes\n", n);
-
-            // int length = n / size    of(sample_t);
-            // sample_t * tmp = (sample_t *)malloc(wave_size + n);
-            // memcpy(tmp, wave, wave_size);
-            // memcpy(tmp + (wave_size / sizeof(sample_t)), buffer, n);
-            // wave = tmp;
 
             int buffer_length = n / sizeof(sample_t);
 
@@ -193,7 +197,7 @@ int main(int argc, char *argv[]) {
                 memcpy(wave, buffer + (wave_max_length - tail), sizeof(sample_t) * (tail + buffer_length - wave_max_length));
                 tail = tail + buffer_length - wave_max_length;
             }
-            printf("%ld, %ld\n", head, tail);
+            printf("%ld, %ld, %d\n", head, tail, n);
 
             // wave_size += n;
             // wave_length = wave_size / sizeof(sample_t);
@@ -212,7 +216,7 @@ int main(int argc, char *argv[]) {
         }
         free(buffer);
 
-        close(client_sockfd);
+        // close(client_sockfd);
         printf("Client socket closed\n");
     // }
     // wave_length = wave_size / sizeof(sample_t);

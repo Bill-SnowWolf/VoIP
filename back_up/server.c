@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
     /*
      * Create Server Socket
      */
-    int sockfd = socket(PF_INET, SOCK_STREAM, 0);
+    int sockfd = socket(PF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
         fprintf(stderr, "ERROR opening socket");
     }
@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
      * Bind Socket to a port
      */
     serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = INADDR_ANY;
+    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     serv_addr.sin_port = htons(PORT);
     if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)  {
         fprintf(stderr, "ERROR on binding");

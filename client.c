@@ -26,7 +26,10 @@ jack_port_t *input_port;
 jack_nframes_t wave_length;
 sample_t *wave;
 long offset = 0;
+
 int sockfd;
+struct sockaddr_in serv_addr;
+int addr_len = sizeof(serv_addr);
 
 void process_audio (jack_nframes_t nframes)  {
     // printf("%d\n", nframes);
@@ -35,24 +38,35 @@ void process_audio (jack_nframes_t nframes)  {
     jack_default_audio_sample_t *in = (jack_default_audio_sample_t *) jack_port_get_buffer (input_port, nframes);
 
     sample_t *buffer = (sample_t *)malloc(sizeof(sample_t) * nframes);
-    // jack_nframes_t frames_left = nframes;
+    jack_nframes_t frames_left = nframes;
 
-    // while (wave_length - offset < frames_left) {
-    //     memcpy (buffer + (nframes - frames_left), wave + offset, sizeof (sample_t) * (wave_length - offset));
-    //     frames_left -= wave_length - offset;
-    //     offset = 0;
-    // }
-    // if (frames_left > 0) {
-    //     memcpy (buffer + (nframes - frames_left), wave + offset, sizeof (sample_t) * frames_left);
-    //     offset += frames_left;
-    // }
-    memcpy(buffer, in, nframes * sizeof(sample_t));
-    // Send buffer through socket
-    int n = write(sockfd, buffer, nframes * sizeof(sample_t));
-    if (n < 0) {
-        printf("Socket closed \n");
-        close(sockfd);
+    while (wave_length - offset < frames_left) {
+        memcpy (buffer + (nframes - frames_left), wave + offset, sizeof (sample_t) * (wave_length - offset));
+        frames_left -= wave_length - offset;
+        offset = 0;
     }
+    if (frames_left > 0) {
+        memcpy (buffer + (nframes - frames_left), wave + offset, sizeof (sample_t) * frames_left);
+        offset += frames_left;
+    }
+    // memcpy(buffer, in, nframes * sizeof(sample_t));
+
+    // // Send buffer through socket: TCP
+    // int n = write(sockfd, buffer, nframes * sizeof(sample_t));
+    // if (n < 0) {
+    //     printf("Socket closed \n");
+    //     close(sockfd);
+    // }
+
+    // Send Data: UDP
+    int n = sendto(sockfd, buffer, nframes * sizeof(sample_t), 0,
+                   (struct sockaddr *)&serv_addr,
+                   addr_len);
+    if (n<0) {
+        printf("Die\n");
+        exit(1);
+    }
+
     free(buffer);
 }
 
@@ -173,7 +187,7 @@ int main(int argc, char *argv[]) {
 
     // Socket
     int n;
-    struct sockaddr_in serv_addr;
+    
     struct hostent *server;
 
     // if (argc < 2) {
@@ -184,7 +198,7 @@ int main(int argc, char *argv[]) {
     /*
      * Create client socket
      */
-    sockfd = socket(PF_INET, SOCK_DGRAM, 0);
+    sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sockfd < 0) {
         fprintf(stderr, "ERROR opening socket");
         exit(1);
@@ -192,8 +206,10 @@ int main(int argc, char *argv[]) {
     
     if (argc < 2) {
         server = gethostbyname("127.0.0.1");
+        // server = "127.0.0.1"
     } else {
         server = gethostbyname(argv[1]);
+        // server = argv[1];
     }
     // server = gethostbyname("127.0.0.1");
     if (server == NULL) {
@@ -213,13 +229,13 @@ int main(int argc, char *argv[]) {
     serv_addr.sin_port = htons(PORT);
 
     /*
-     * Establish connection
+     * Establish connection: TCP/IP
      */
 
-    if (connect(sockfd,(struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
-        fprintf(stderr, "ERROR connecting");
-        exit(1);
-    }
+    // if (connect(sockfd,(struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
+        // fprintf(stderr, "ERROR connecting");
+        // exit(1);
+    // }
 
     /*
      * Start communication
@@ -233,26 +249,26 @@ int main(int argc, char *argv[]) {
     const char **ports;
     
     /* create two ports: 1 input & 1 output*/
-  input_port = jack_port_register (client, "input", JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
-  output_port = jack_port_register (client, "output", JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
+    input_port = jack_port_register (client, "input", JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
+    // output_port = jack_port_register (client, "output", JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
 
-  /* tell the JACK server that we are ready to roll */
-  if (jack_activate (client)) {
-    fprintf (stderr, "cannot activate client");
-    return 1;
-  }
+    /* tell the JACK server that we are ready to roll */
+    if (jack_activate (client)) {
+        fprintf (stderr, "cannot activate client");
+        return 1;
+    }
 
-  if ((ports = jack_get_ports (client, NULL, NULL, JackPortIsPhysical|JackPortIsOutput)) == NULL) {
-    fprintf(stderr, "Cannot find any physical capture ports\n");
-    exit(1);
-  }
+    if ((ports = jack_get_ports (client, NULL, NULL, JackPortIsPhysical|JackPortIsOutput)) == NULL) {
+        fprintf(stderr, "Cannot find any physical capture ports\n");
+        exit(1);
+    } 
 
-  if (jack_connect (client, ports[0], jack_port_name (input_port))) {
-    fprintf (stderr, "cannot connect input ports\n");
-  }
+    if (jack_connect (client, ports[0], jack_port_name (input_port))) {
+        fprintf (stderr, "cannot connect input ports\n");
+    }
 
-  printf("%s\n", ports[0]);
-  free (ports);
+    printf("%s\n", ports[0]);
+    free (ports);
    
     if ((ports = jack_get_ports (client, NULL, NULL, JackPortIsPhysical|JackPortIsInput)) == NULL) {
       fprintf(stderr, "Cannot find any physical playback ports\n");
