@@ -1,18 +1,24 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <iostream>
+
+using namespace std;
 
 #define NUM_THREADS     5
 
 // Global Variables
 
-char * data;
+string data;
 
-void * PrintHello(void *threadid) {
-   printf("Hello World! It's me, thread!\n");
-   // while(!strcmp(data, "exit")) {
-
-   // }
+void *PrintHello(void *threadid) {
+   cout << "Hello World! It's me, thread!" << endl;
+   while(data!="exit") {
+      if (!data.empty()) {
+         cout << "data is: " << data << endl;
+         data.clear();
+      }      
+   }
    pthread_exit(NULL);
 }
 

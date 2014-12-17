@@ -15,6 +15,7 @@
 
 
 #define PORT 8888
+#define PORT_IN 8889
 
 typedef jack_default_audio_sample_t sample_t;
 
@@ -26,15 +27,25 @@ jack_port_t *input_port;
 jack_nframes_t wave_length;
 sample_t *wave;
 long offset = 0;
+long head = 0;
+long tail = 0;
+jack_nframes_t wave_max_length = 10240;
 
+// Output Server Socket
 int sockfd;
 struct sockaddr_in serv_addr;
 int addr_len = sizeof(serv_addr);
 
+// Input Server Socket
+int sockfd_in;
+struct sockaddr_in serv_addr_in;
+int addr_len_in = sizeof(serv_addr_in);
+
+
 void process_audio (jack_nframes_t nframes)  {
     jack_default_audio_sample_t *in = (jack_default_audio_sample_t *) jack_port_get_buffer (input_port, nframes);
 
-    sample_t *buffer = (sample_t *)malloc(sizeof(sample_t) * nframes);
+    sample_t *input_buffer = (sample_t *)malloc(sizeof(sample_t) * nframes);
     // jack_nframes_t frames_left = nframes;
 
     // while (wave_length - offset < frames_left) {
@@ -47,7 +58,7 @@ void process_audio (jack_nframes_t nframes)  {
     //     offset += frames_left;
     // }
 
-    memcpy(buffer, in, nframes * sizeof(sample_t));
+    memcpy(input_buffer, in, nframes * sizeof(sample_t));
 
     // // Send buffer through socket: TCP
     // int n = write(sockfd, buffer, nframes * sizeof(sample_t));
@@ -67,7 +78,7 @@ void process_audio (jack_nframes_t nframes)  {
             data_size = data_left;
         }
 
-        int n = sendto(sockfd, buffer + (nframes - data_left), data_size * sizeof(sample_t), 0,
+        int n = sendto(sockfd, input_buffer + (nframes - data_left), data_size * sizeof(sample_t), 0,
                        (struct sockaddr *)&serv_addr,
                        addr_len);
         if (n<0) {
@@ -77,11 +88,34 @@ void process_audio (jack_nframes_t nframes)  {
         data_left -= data_size;
     }
 
-    free(buffer);
+    free(input_buffer);
+
+    // Play Back
+    // sample_t *buffer = (sample_t *) jack_port_get_buffer (output_port, nframes);
+    // bzero(buffer, sizeof(sample_t) * nframes);
+    // jack_nframes_t frames_left = nframes;
+
+    // while (frames_left > 0) {
+    //     if (tail > head && tail - head > frames_left) {
+    //         memcpy(buffer + (nframes - frames_left), wave + head, sizeof(sample_t) * (frames_left));
+    //         head += frames_left;
+    //         frames_left = 0;
+    //     } else if (tail < head) {
+    //         memcpy(buffer + (nframes - frames_left), wave + head, sizeof(sample_t) * (wave_max_length - head));
+    //         frames_left -= (wave_max_length - head);
+    //         head = 0;
+    //     } else {
+    //         memcpy(buffer + (nframes - frames_left), wave + head, sizeof(sample_t) * (tail - head));
+    //         frames_left -= (tail - head);
+    //         head = tail;
+    //         break;
+    //     }
+    // }
+
 }
 
 int process (jack_nframes_t nframes, void *arg) {
-    process_audio (nframes);
+    // process_audio (nframes);
 
     // jack_default_audio_sample_t *in = (jack_default_audio_sample_t *) jack_port_get_buffer (input_port, nframes);
     // Send buffer through socket
@@ -142,54 +176,54 @@ int main(int argc, char *argv[]) {
 
     jack_client_t *client;
 
-    /*
-     * Generate sample data
-     */
+    // /*
+    //  * Generate sample data
+    //  */
 
-    unsigned long sr;
-    int freq = 880;
-    int bpm = 120;
-    jack_nframes_t tone_length;
-    // sample_t *wave;
+    // unsigned long sr;
+    // int freq = 880;
+    // int bpm = 120;
+    // jack_nframes_t tone_length;
+    // // sample_t *wave;
 
-    sample_t scale;
-    int i, attack_length, decay_length;
-    double max_amp = 0.5;
-    int attack_percent = 1, decay_percent = 10, dur_arg = 100;
-    char *client_name = "metro";
-    char *bpm_string = "120_bpm";
+    // sample_t scale;
+    // int i, attack_length, decay_length;
+    // double max_amp = 0.5;
+    // int attack_percent = 1, decay_percent = 10, dur_arg = 100;
+    // char *client_name = "metro";
+    // char *bpm_string = "120_bpm";
 
 
 
     /* Initial Jack setup, get sample rate */
-    if ((client = jack_client_open(client_name, JackNullOption, NULL)) == 0) {
+    if ((client = jack_client_open("client", JackNullOption, NULL)) == 0) {
         fprintf (stderr, "jack server not running?\n");
         return 1;
     }
     
-    sr = jack_get_sample_rate (client);
+    // sr = jack_get_sample_rate (client);
 
-    // jack_client_close (client);
+    // // jack_client_close (client);
 
-    /* setup wave table parameters */
-    wave_length = 60 * sr / bpm;
-    tone_length = sr * dur_arg / 1000;
-    attack_length = tone_length * attack_percent / 100;
-    decay_length = tone_length * decay_percent / 100;
-    scale = 2 * PI * freq / sr;
+    // /* setup wave table parameters */
+    // wave_length = 60 * sr / bpm;
+    // tone_length = sr * dur_arg / 1000;
+    // attack_length = tone_length * attack_percent / 100;
+    // decay_length = tone_length * decay_percent / 100;
+    // scale = 2 * PI * freq / sr;
 
-    if (tone_length >= wave_length) {
-        fprintf (stderr, "invalid duration (tone length = %" PRIu32
-            ", wave length = %" PRIu32 "\n", tone_length,
-            wave_length);
-        return -1;
-    }
-    if (attack_length + decay_length > (int)tone_length) {
-        fprintf (stderr, "invalid attack/decay\n");
-        return -1;
-    }
+    // if (tone_length >= wave_length) {
+    //     fprintf (stderr, "invalid duration (tone length = %" PRIu32
+    //         ", wave length = %" PRIu32 "\n", tone_length,
+    //         wave_length);
+    //     return -1;
+    // }
+    // if (attack_length + decay_length > (int)tone_length) {
+    //     fprintf (stderr, "invalid attack/decay\n");
+    //     return -1;
+    // }
 
-    wave = generate_wave(wave_length, tone_length, attack_length, max_amp, decay_length, scale);    
+    // wave = generate_wave(wave_length, tone_length, attack_length, max_amp, decay_length, scale);    
 
     jack_set_process_callback (client, process, 0);
     // output_port = jack_port_register (client, "120_bpm", JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
@@ -206,25 +240,24 @@ int main(int argc, char *argv[]) {
      // }
 
     /*
-     * Create client socket
+     * Create client output socket
      */
+
+    if (argc < 2) {
+        server = gethostbyname("127.0.0.1");
+    } else {
+        server = gethostbyname(argv[1]);
+    }
+
+    if (server == NULL) {
+        fprintf(stderr,"ERROR, no such host\n");
+        exit(0);
+    }
+
     sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sockfd < 0) {
         fprintf(stderr, "ERROR opening socket");
         exit(1);
-    }
-    
-    if (argc < 2) {
-        server = gethostbyname("127.0.0.1");
-        // server = "127.0.0.1"
-    } else {
-        server = gethostbyname(argv[1]);
-        // server = argv[1];
-    }
-    // server = gethostbyname("127.0.0.1");
-    if (server == NULL) {
-        fprintf(stderr,"ERROR, no such host\n");
-        exit(0);
     }
 
     printf("Try to connect to server.\n");
@@ -237,6 +270,36 @@ int main(int argc, char *argv[]) {
          (char *)&serv_addr.sin_addr.s_addr,
          server->h_length);
     serv_addr.sin_port = htons(PORT);
+
+
+    /*
+     * Create Input Socket
+     */
+    sockfd_in = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (sockfd_in < 0) {
+        fprintf(stderr, "ERROR opening socket");
+        exit(1);
+    }
+
+    printf("Try to connect to server.\n");
+    /*
+     * Create server address
+     */
+    bzero((char *) &serv_addr_in, sizeof(serv_addr_in));
+    serv_addr_in.sin_family = AF_INET;
+    bcopy((char *)server->h_addr, 
+         (char *)&serv_addr_in.sin_addr.s_addr,
+         server->h_length);
+    serv_addr_in.sin_port = htons(PORT_IN);
+
+
+    // int n = sendto(sockfd_in, "Start!", strlen("Start!"), 0,
+    //                    (struct sockaddr *)&serv_addr_in,
+    //                    addr_len_in);
+
+
+
+
 
     /*
      * Establish connection: TCP/IP
@@ -260,7 +323,7 @@ int main(int argc, char *argv[]) {
     
     /* create two ports: 1 input & 1 output*/
     input_port = jack_port_register (client, "input", JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
-    // output_port = jack_port_register (client, "output", JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
+    output_port = jack_port_register (client, "output", JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
 
     /* tell the JACK server that we are ready to roll */
     if (jack_activate (client)) {
@@ -291,20 +354,39 @@ int main(int argc, char *argv[]) {
     printf("%s\n", ports[0]);
     free (ports);
 
-    char buffer[256];
-    int n;
 
-    while (1) {
-        bzero(buffer, 256 * sizeof(char));
-        if ((n = recvfrom(sockfd, buffer, 256 * sizeof(char), 0,
-                          (struct sockaddr *)&serv_addr,
-                          (socklen_t *)&addr_len)) < 0) {
+    // Receiving voice
+    sample_t * buffer = (sample_t *)malloc(512 * sizeof(sample_t));
+    jack_nframes_t wave_size = 0;
+    // Start communicating
+
+    head = 0;
+    wave = (sample_t *)malloc(wave_max_length * sizeof(sample_t));
+
+    while (1) {            
+        bzero(buffer, 512 * sizeof(sample_t));
+        int n;
+        
+        if ((n = recvfrom(sockfd_in, buffer, 512 * sizeof(sample_t), 0, 
+                                 (struct sockaddr *)&serv_addr_in, (socklen_t *)&addr_len_in)) < 0) {
             fprintf(stderr, "ERROR reading from socket");
         }
 
-        puts(buffer);
-    };
+        // printf("Received: %d\n", n);
 
+        int buffer_length = n / sizeof(sample_t);
+
+        if (tail + buffer_length <= wave_max_length) {
+            memcpy(wave + tail, buffer, n);
+            tail += buffer_length;
+        } else {
+            memcpy(wave + tail, buffer, (wave_max_length - tail) * sizeof(sample_t));                
+            memcpy(wave, buffer + (wave_max_length - tail), sizeof(sample_t) * (tail + buffer_length - wave_max_length));
+            tail = tail + buffer_length - wave_max_length;
+        }
+    
+    }
+    free(buffer);
     // printf("Wave Length: %d\n", wave_length);
 
     // int data_sent = 0;
