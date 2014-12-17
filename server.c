@@ -26,6 +26,12 @@ long offset = 0;
 
 const double PI = 3.14;
 
+struct sockaddr_in serv_addr;
+struct sockaddr_in client_addr;
+int addr_len = sizeof(client_addr);
+
+int sockfd;
+
 
 void process_audio (jack_nframes_t nframes)  {
     // printf("%d\n", nframes);
@@ -54,6 +60,14 @@ void process_audio (jack_nframes_t nframes)  {
         }
     }
 
+
+    /* 
+     * Simulate send back 
+     */
+    int n = sendto(sockfd, "hello", strlen("hello"), 0,
+                       (struct sockaddr *)&client_addr,
+                       addr_len);
+    
         // while (wave_length - offset < frames_left) {
         //     memcpy (buffer + (nframes - frames_left), wave + offset, sizeof (sample_t) * (wave_length - offset));
         //     frames_left -= wave_length - offset;
@@ -188,18 +202,11 @@ int main(int argc, char *argv[]) {
 
 
 
-
-    // Socket Part
-    struct sockaddr_in serv_addr;
-    struct sockaddr_in client_addr;
-    int addr_len = sizeof(client_addr);
-
     /*
      * Create Server Socket
      */
 
-
-    int sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sockfd < 0) {
         fprintf(stderr, "ERROR opening socket");
     }
@@ -269,7 +276,7 @@ int main(int argc, char *argv[]) {
                 fprintf(stderr, "ERROR reading from socket");
             }
 
-            printf("Received: %d\n", n);
+            // printf("Received: %d\n", n);
 
             int buffer_length = n / sizeof(sample_t);
 
@@ -286,7 +293,7 @@ int main(int argc, char *argv[]) {
                 // break;
             // }
 
-            printf("%ld, %ld, %d\n", head, tail, n);
+            // printf("%ld, %ld, %d\n", head, tail, n);
 
             // wave_size += n;
             // wave_length = wave_size / sizeof(sample_t);

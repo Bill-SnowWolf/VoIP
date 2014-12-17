@@ -32,9 +32,6 @@ struct sockaddr_in serv_addr;
 int addr_len = sizeof(serv_addr);
 
 void process_audio (jack_nframes_t nframes)  {
-    // printf("%d\n", nframes);
-    // sample_t *buffer = (sample_t *) jack_port_get_buffer (output_port, nframes);
-
     jack_default_audio_sample_t *in = (jack_default_audio_sample_t *) jack_port_get_buffer (input_port, nframes);
 
     sample_t *buffer = (sample_t *)malloc(sizeof(sample_t) * nframes);
@@ -49,6 +46,7 @@ void process_audio (jack_nframes_t nframes)  {
     //     memcpy (buffer + (nframes - frames_left), wave + offset, sizeof (sample_t) * frames_left);
     //     offset += frames_left;
     // }
+
     memcpy(buffer, in, nframes * sizeof(sample_t));
 
     // // Send buffer through socket: TCP
@@ -198,7 +196,7 @@ int main(int argc, char *argv[]) {
     // input_port = jack_port_register (client, "input", JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
 
     // Socket
-    int n;
+
     
     struct hostent *server;
 
@@ -293,8 +291,18 @@ int main(int argc, char *argv[]) {
     printf("%s\n", ports[0]);
     free (ports);
 
+    char buffer[256];
+    int n;
+
     while (1) {
-        sleep(1);
+        bzero(buffer, 256 * sizeof(char));
+        if ((n = recvfrom(sockfd, buffer, 256 * sizeof(char), 0,
+                          (struct sockaddr *)&serv_addr,
+                          (socklen_t *)&addr_len)) < 0) {
+            fprintf(stderr, "ERROR reading from socket");
+        }
+
+        puts(buffer);
     };
 
     // printf("Wave Length: %d\n", wave_length);
