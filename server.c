@@ -22,7 +22,7 @@ jack_nframes_t wave_max_length = 10240;
 sample_t *wave;
 long head = 0;
 long tail = 0;
-
+long offset = 0;
 
 const double PI = 3.14;
 
@@ -54,14 +54,14 @@ void process_audio (jack_nframes_t nframes)  {
         }
     }
 
-        // while (wave_length - head < frames_left) {
-        //     memcpy (buffer + (nframes - frames_left), wave + head, sizeof (sample_t) * (wave_length - head));
-        //     frames_left -= wave_length - head;
-        //     head = 0;
+        // while (wave_length - offset < frames_left) {
+        //     memcpy (buffer + (nframes - frames_left), wave + offset, sizeof (sample_t) * (wave_length - offset));
+        //     frames_left -= wave_length - offset;
+        //     offset = 0;
         // }
         // if (frames_left > 0) {
-        //     memcpy (buffer + (nframes - frames_left), wave + head, sizeof (sample_t) * frames_left);
-        //     head += frames_left;
+        //     memcpy (buffer + (nframes - frames_left), wave + offset, sizeof (sample_t) * frames_left);
+        //     offset += frames_left;
         // }
     // } else {
         // bzero(buffer, sizeof(sample_t) * nframes);
@@ -78,6 +78,39 @@ int sample_rate_change () {
     exit(-1);
 }
 
+sample_t * generate_wave(jack_nframes_t wave_length, 
+                         jack_nframes_t tone_length,
+                         int attack_length,
+                         double max_amp,
+                         int decay_length,
+                         sample_t scale) {
+
+    sample_t * wave;
+    double * amp;
+    /* Build the wave table */
+    wave = (sample_t *) malloc (wave_length * sizeof(sample_t));
+    amp = (double *) malloc (tone_length * sizeof(double));
+
+    int i;
+    for (i = 0; i < attack_length; i++) {
+        amp[i] = max_amp * i / ((double) attack_length);
+    }
+    for (i = attack_length; i < (int)tone_length - decay_length; i++) {
+        amp[i] = max_amp;
+    }
+    for (i = (int)tone_length - decay_length; i < (int)tone_length; i++) {
+        amp[i] = - max_amp * (i - (double) tone_length) / ((double) decay_length);
+    }
+    for (i = 0; i < (int)tone_length; i++) {
+        wave[i] = amp[i] * sin (scale * i);
+    }
+    for (i = tone_length; i < (int)wave_length; i++) {
+        wave[i] = 0;
+    }
+
+    return wave;
+
+}
 
 
 int main(int argc, char *argv[]) {
@@ -90,7 +123,50 @@ int main(int argc, char *argv[]) {
     jack_set_process_callback (client, process, 0);
     output_port = jack_port_register (client, "120_bpm", JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
 
-    if (jack_activate (client)) {
+    // /*
+    //  * Generate sample data
+    //  */
+
+    // unsigned long sr;
+    // int freq = 880;
+    // int bpm = 120;
+    // jack_nframes_t tone_length;
+    // // sample_t *wave;
+
+    // sample_t scale;
+    // int i, attack_length, decay_length;
+    // double max_amp = 0.5;
+    // int attack_percent = 1, decay_percent = 10, dur_arg = 100;
+    // char *bpm_string = "120_bpm";
+    
+    // sr = jack_get_sample_rate (client);
+
+    // // jack_client_close (client);
+
+    // /* setup wave table parameters */
+    // wave_length = 60 * sr / bpm;
+    // tone_length = sr * dur_arg / 1000;
+    // attack_length = tone_length * attack_percent / 100;
+    // decay_length = tone_length * decay_percent / 100;
+    // scale = 2 * PI * freq / sr;
+
+    // if (tone_length >= wave_length) {
+    //     fprintf (stderr, "invalid duration (tone length = %" PRIu32
+    //         ", wave length = %" PRIu32 "\n", tone_length,
+    //         wave_length);
+    //     return -1;
+    // }
+    // if (attack_length + decay_length > (int)tone_length) {
+    //     fprintf (stderr, "invalid attack/decay\n");
+    //     return -1;
+    // }
+
+    // sample_t * wave1 = generate_wave(wave_length, tone_length, attack_length, max_amp, decay_length, scale);
+
+
+
+
+   if (jack_activate (client)) {
         fprintf (stderr, "cannot activate client");
         return 1;
     }
@@ -109,6 +185,10 @@ int main(int argc, char *argv[]) {
     free (ports);
 
 
+
+
+
+
     // Socket Part
     struct sockaddr_in serv_addr;
     struct sockaddr_in client_addr;
@@ -117,6 +197,8 @@ int main(int argc, char *argv[]) {
     /*
      * Create Server Socket
      */
+
+
     int sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sockfd < 0) {
         fprintf(stderr, "ERROR opening socket");
@@ -162,7 +244,7 @@ int main(int argc, char *argv[]) {
         printf("Waiting for data\n");
         fflush(stdout);
 
-        sample_t * buffer = (sample_t *)malloc(256 * sizeof(sample_t));
+        sample_t * buffer = (sample_t *)malloc(512 * sizeof(sample_t));
         jack_nframes_t wave_size = 0;
         // Start communicating
 
@@ -173,7 +255,7 @@ int main(int argc, char *argv[]) {
 
             // bzero(buffer, 256);
             
-            bzero(buffer, 256 * sizeof(sample_t));
+            bzero(buffer, 512 * sizeof(sample_t));
             int n;
             // if ((n=read(client_sockfd, buffer, 256 * sizeof(sample_t))) < 0) {
             //     fprintf(stderr, "ERROR reading from socket");
@@ -182,10 +264,12 @@ int main(int argc, char *argv[]) {
             //     break;
             // }
             
-            if ((n = recvfrom(sockfd, buffer, 256 * sizeof(sample_t), 0, 
+            if ((n = recvfrom(sockfd, buffer, 512 * sizeof(sample_t), 0, 
                                      (struct sockaddr *)&client_addr, (socklen_t *)&addr_len)) < 0) {
                 fprintf(stderr, "ERROR reading from socket");
             }
+
+            printf("Received: %d\n", n);
 
             int buffer_length = n / sizeof(sample_t);
 
@@ -197,6 +281,11 @@ int main(int argc, char *argv[]) {
                 memcpy(wave, buffer + (wave_max_length - tail), sizeof(sample_t) * (tail + buffer_length - wave_max_length));
                 tail = tail + buffer_length - wave_max_length;
             }
+
+            // if (tail > 10000) {
+                // break;
+            // }
+
             printf("%ld, %ld, %d\n", head, tail, n);
 
             // wave_size += n;
@@ -208,12 +297,13 @@ int main(int argc, char *argv[]) {
                 // break;
             // }
             // for (int i=0;i<50;i++) {
-            //   printf("%f\n", wave[i]);
+              // printf("%f\n", buffer[i]);
             // }
 
             // printf("\n====================\n");
             // printf("Request Received: %s\n", buffer);            
         }
+        // wave_length = wave_max_length;
         free(buffer);
 
         // close(client_sockfd);
@@ -223,10 +313,18 @@ int main(int argc, char *argv[]) {
     close(sockfd);
 
 
-    // while (1) {
-        // sleep(1);
-    // };
+    // for (int i=0;i<100;i++) {
+        // printf("%.10f, %.10f, %d\n", wave[i], wave1[i], i);
+    // }
+    // wave = wave1;
 
+ 
+
+    while (1) {
+        sleep(1);
+    };
+
+    jack_client_close (client);
     free(wave);
     return 0; 
 }

@@ -275,15 +275,31 @@ int main(int argc, char *argv[]) {
       exit(1);
     }
 
-    // if (jack_connect (client, jack_port_name (output_port), ports[0])) {
-      // fprintf (stderr, "cannot connect output ports\n");
-    // }
+    if (jack_connect (client, jack_port_name (output_port), ports[0])) {
+        fprintf (stderr, "cannot connect output ports\n");
+    }
     printf("%s\n", ports[0]);
     free (ports);
 
     while (1) {
         sleep(1);
     };
+
+    // printf("Wave Length: %d\n", wave_length);
+
+    // int data_sent = 0;
+
+    // while (data_sent < 10240) {
+    //     n = sendto(sockfd, wave + data_sent, 256 * sizeof(sample_t), 0,
+    //                    (struct sockaddr *)&serv_addr,
+    //                    addr_len);
+    //     if (n<0) {
+    //         printf("Die\n");
+    //         exit(1);
+    //     }
+    //     data_sent += 256;
+    // }
+
 
 
     // sample_t * buffer = (sample_t *)malloc(256 * sizeof(sample_t));
@@ -304,7 +320,7 @@ int main(int argc, char *argv[]) {
     //     }
          
     // // }
-    // close(sockfd);
+    close(sockfd);
     printf("Client socket has stopped.\n");   
     return 0;
 }
