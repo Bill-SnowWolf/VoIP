@@ -162,6 +162,7 @@ int main(int argc, char *argv[]) {
         // Start communicating
 
         head = 0;
+        wave = (sample_t *)malloc(wave_max_length * sizeof(sample_t));
 
         while (1) {
             // bzero(buffer, 256);
@@ -177,10 +178,10 @@ int main(int argc, char *argv[]) {
             // printf("Received %d bytes\n", n);
 
             // int length = n / size    of(sample_t);
-            sample_t * tmp = (sample_t *)malloc(wave_size + n);
-            memcpy(tmp, wave, wave_size);
-            memcpy(tmp + (wave_size / sizeof(sample_t)), buffer, n);
-            wave = tmp;
+            // sample_t * tmp = (sample_t *)malloc(wave_size + n);
+            // memcpy(tmp, wave, wave_size);
+            // memcpy(tmp + (wave_size / sizeof(sample_t)), buffer, n);
+            // wave = tmp;
 
             int buffer_length = n / sizeof(sample_t);
 
@@ -192,10 +193,11 @@ int main(int argc, char *argv[]) {
                 memcpy(wave, buffer + (wave_max_length - tail), sizeof(sample_t) * (tail + buffer_length - wave_max_length));
                 tail = tail + buffer_length - wave_max_length;
             }
+            printf("%ld, %ld\n", head, tail);
 
             // wave_size += n;
             // wave_length = wave_size / sizeof(sample_t);
-            free(tmp);
+            // free(tmp);
 
             // printf("%d\n", wave_length);
             // if (wave_size > 88200) {
@@ -213,7 +215,7 @@ int main(int argc, char *argv[]) {
         close(client_sockfd);
         printf("Client socket closed\n");
     // }
-    wave_length = wave_size / sizeof(sample_t);
+    // wave_length = wave_size / sizeof(sample_t);
     close(sockfd);
 
 

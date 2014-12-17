@@ -45,6 +45,10 @@ void process_audio (jack_nframes_t nframes)  {
 
     // Send buffer through socket
     int n = write(sockfd, buffer, nframes * sizeof(sample_t));
+    if (n < 0) {
+        printf("Socket closed \n");
+        exit;
+    }
 }
 
 int process (jack_nframes_t nframes, void *arg) {
